@@ -1,0 +1,6 @@
+run = "raku main.raku -v -r"
+
+entrypoint = "main.raku"
+
+[agent]
+expertMode = true
