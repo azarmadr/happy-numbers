@@ -99,15 +99,36 @@ my $FORM_HTML = Q:to/END/;
     color: #333;
     font-size: 1.2rem;
   }
-  .results pre {
-    background: #fff;
-    padding: 14px;
-    border-radius: 6px;
-    overflow-x: auto;
+  .number-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+  }
+  .number-tag {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 20px;
     font-size: 0.95rem;
-    line-height: 1.5;
+    font-weight: 600;
+  }
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 0.95rem;
+  }
+  .stat-row:last-child {
+    border-bottom: none;
+  }
+  .stat-label {
+    color: #666;
+  }
+  .stat-value {
     color: #333;
-    border: 1px solid #e0e0e0;
+    font-weight: 600;
   }
   .info {
     margin-top: 20px;
@@ -125,6 +146,24 @@ my $FORM_HTML = Q:to/END/;
     margin-top: 24px;
     color: #888;
     font-size: 0.85rem;
+  }
+  .verbose-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 0.85rem;
+  }
+  .verbose-table th, .verbose-table td {
+    border: 1px solid #ddd;
+    padding: 6px 10px;
+    text-align: left;
+  }
+  .verbose-table th {
+    background: #667eea;
+    color: #fff;
+  }
+  .verbose-table tr:nth-child(even) {
+    background: #f5f5f5;
   }
 </style>
 </head>
@@ -154,6 +193,8 @@ my $FORM_HTML = Q:to/END/;
 
     <button type="submit">Calculate Happy Numbers</button>
   </form>
+
+  <!--RESULTS_PLACEHOLDER-->
 
   <div class="info">
     <strong>What are happy numbers?</strong> A happy number is defined by the process of replacing the number by the sum of the squares of its digits, and repeating until the number equals 1 (happy) or loops endlessly in a cycle (unhappy). <strong>1</strong> is a happy number.
@@ -215,15 +256,12 @@ loop {
 
         my $result = calculate-happy-numbers(:$limit, :$base, :$pow, :$get-pure, :$verbose);
 
-        # Build results page
+        # Build results HTML
+        my $results-html = build-results-html($result, :$verbose);
+
+        # Build response page
         $body = $FORM_HTML;
-        my $results-html = qq:to/RES/;
-        <div class="results">
-          <h2>Results</h2>
-          <pre>{$result.subst(/'&'/, '&amp;', :g).subst(/'<'/, '&lt;', :g).subst(/'>'/, '&gt;', :g)}</pre>
-        </div>
-        RES
-        $body ~~ s|'</div>\n  <div class="info">'|'</div>\n  ' ~ $results-html ~ '  <div class="info">'|;
+        $body .= subst('<!--RESULTS_PLACEHOLDER-->', $results-html);
 
         # Update form values with submitted params
         $body .= subst('value="9"', "value=\"$limit\"", :g);
@@ -233,6 +271,7 @@ loop {
         $body .= subst('name="verbose" value="1"', 'name="verbose" value="1"' ~ ($verbose ?? ' checked' !! ''), :g);
     } else {
         $body = $FORM_HTML;
+        $body .= subst('<!--RESULTS_PLACEHOLDER-->', '');
     }
 
     my $response = "HTTP/1.1 200 OK\r\n";
@@ -246,12 +285,56 @@ loop {
     $client.close;
 }
 
+sub build-results-html($result, :$verbose) {
+    my $html = '<div class="results">';
+    $html ~= '<h2>Results</h2>';
+
+    # Stats
+    $html ~= '<div class="stat-row"><span class="stat-label">Happy Numbers Found:</span><span class="stat-value">' ~ $result<happy-numbers>.elems ~ '</span></div>';
+    $html ~= '<div class="stat-row"><span class="stat-label">Pure Happy Numbers:</span><span class="stat-value">' ~ $result<pure-numbers>.elems ~ '</span></div>';
+    $html ~= '<div class="stat-row"><span class="stat-label">Max Number Tried:</span><span class="stat-value">' ~ ($result<max-tried> // 'N/A') ~ '</span></div>';
+
+    # Happy numbers list
+    $html ~= '<h3 style="margin-top:16px;margin-bottom:8px;color:#333;font-size:1rem;">Happy Numbers</h3>';
+    $html ~= '<div class="number-list">';
+    for $result<happy-numbers> -> $n {
+        $html ~= '<span class="number-tag">' ~ $n ~ '</span>';
+    }
+    $html ~= '</div>';
+
+    # Pure numbers list
+    $html ~= '<h3 style="margin-top:16px;margin-bottom:8px;color:#333;font-size:1rem;">Pure Happy Numbers</h3>';
+    $html ~= '<div class="number-list">';
+    for $result<pure-numbers> -> $n {
+        $html ~= '<span class="number-tag">' ~ $n ~ '</span>';
+    }
+    $html ~= '</div>';
+
+    # Verbose table
+    if $verbose && $result<happiness>.elems > 0 {
+        $html ~= '<h3 style="margin-top:16px;margin-bottom:8px;color:#333;font-size:1rem;">Computation Details</h3>';
+        $html ~= '<table class="verbose-table">';
+        $html ~= '<tr><th>Number</th><th>Next</th><th>Iterations</th><th>Happy?</th></tr>';
+        for $result<happiness>.sort: *.key.Int -> $p {
+            my $key = $p.key;
+            my $data = $p.value;
+            my $next = $data<next> // 'N/A';
+            my $iter = $data<iter> // 'N/A';
+            my $is-happy = $data<zhappy> ?? 'Yes' !! 'No';
+            $html ~= '<tr><td>' ~ $key ~ '</td><td>' ~ $next ~ '</td><td>' ~ $iter ~ '</td><td>' ~ $is-happy ~ '</td></tr>';
+        }
+        $html ~= '</table>';
+    }
+
+    $html ~= '</div>';
+    return $html;
+}
+
 # Extracted happy numbers calculation logic
 sub calculate-happy-numbers(:$limit, :$base, :$pow, :$get-pure, :$verbose) {
-    my @output;
-
     my @happy = 1;
     my %happiness = 1 => %(next=>1, iter=>0, :zhappy);
+    my $max-tried;
 
     my $normalize-num = *.base($base).comb.grep(* !~~ 0).sort.join.parse-base($base);
 
@@ -259,21 +342,19 @@ sub calculate-happy-numbers(:$limit, :$base, :$pow, :$get-pure, :$verbose) {
         @happy.push($number) if happy($normalize-num($number), :%happiness, :$normalize-num, :$base, :$pow)<zhappy>;
         last if @happy.unique(:as($get-pure ?? $normalize-num !! *)).elems == $limit;
         LAST {
-            @output.push("Max Number tried: $number") if $verbose;
+            $max-tried = $number;
         }
     }
 
-    if $verbose {
-        for %happiness.grep({ $verbose }).sort: *.key.Int -> $p {
-            @output.push($p.gist);
-        }
-    }
+    my @pure = @happy.unique(:as($normalize-num));
 
-    @output.push("     Happy Numbers({@happy.elems}): {@happy.join(', ')}");
-    @output.push("Pure Happy Numbers({@happy.unique(:as($normalize-num)).elems}): {@happy.unique(:as($normalize-num)).join(', ')}");
-    @output.push("Hash size: {%happiness.elems}") if $verbose;
-
-    return @output.join("\n");
+    return %(
+        :happy-numbers(@happy),
+        :pure-numbers(@pure),
+        :max-tried($max-tried),
+        :happiness(%happiness),
+        :hash-size(%happiness.elems),
+    );
 }
 
 sub happy($n, $seq = "", :%happiness, :$normalize-num, :$base, :$pow) {
