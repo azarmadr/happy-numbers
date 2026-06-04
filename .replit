@@ -6,12 +6,29 @@ entrypoint = "main.raku"
 expertMode = true
 
 [workflows]
+runButton = "Project"
 
 [[workflows.workflow]]
-name = "Shell"
-mode = "sequential"
-author = 8497871
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "raku main.raku"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
