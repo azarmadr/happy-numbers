@@ -4,3 +4,14 @@ entrypoint = "main.raku"
 
 [agent]
 expertMode = true
+
+[workflows]
+
+[[workflows.workflow]]
+name = "Shell"
+mode = "sequential"
+author = 8497871
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "raku main.raku"
