@@ -2,211 +2,8 @@
 
 use v6.d;
 
-# HTML form page
-my $FORM_HTML = Q:to/END/;
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Happy Numbers Calculator</title>
-<style>
-  * { box-sizing: border-box; }
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    margin: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
-  }
-  .container {
-    background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-    max-width: 600px;
-    width: 100%;
-    padding: 40px;
-  }
-  h1 {
-    text-align: center;
-    color: #333;
-    margin-bottom: 8px;
-  }
-  p.subtitle {
-    text-align: center;
-    color: #666;
-    margin-top: 0;
-    margin-bottom: 28px;
-  }
-  label {
-    display: block;
-    margin-bottom: 6px;
-    color: #444;
-    font-weight: 600;
-  }
-  input[type="number"], input[type="text"] {
-    width: 100%;
-    padding: 12px 14px;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    font-size: 1rem;
-    margin-bottom: 18px;
-    transition: border-color 0.2s;
-  }
-  input[type="number"]:focus, input[type="text"]:focus {
-    outline: none;
-    border-color: #667eea;
-  }
-  .checkbox-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 18px;
-  }
-  input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    accent-color: #667eea;
-  }
-  button {
-    width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
-  }
-  button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102,126,234,0.4);
-  }
-  .results {
-    margin-top: 28px;
-    padding: 20px;
-    background: #f8f9fa;
-    border-radius: 10px;
-    border-left: 4px solid #667eea;
-  }
-  .results h2 {
-    margin-top: 0;
-    color: #333;
-    font-size: 1.2rem;
-  }
-  .number-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 12px 0;
-  }
-  .number-tag {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: #fff;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 0.95rem;
-    font-weight: 600;
-  }
-  .stat-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #e0e0e0;
-    font-size: 0.95rem;
-  }
-  .stat-row:last-child {
-    border-bottom: none;
-  }
-  .stat-label {
-    color: #666;
-  }
-  .stat-value {
-    color: #333;
-    font-weight: 600;
-  }
-  .info {
-    margin-top: 20px;
-    padding: 14px;
-    background: #e3f2fd;
-    border-radius: 8px;
-    color: #1565c0;
-    font-size: 0.9rem;
-  }
-  .info strong {
-    color: #0d47a1;
-  }
-  .footer {
-    text-align: center;
-    margin-top: 24px;
-    color: #888;
-    font-size: 0.85rem;
-  }
-  .verbose-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-    font-size: 0.85rem;
-  }
-  .verbose-table th, .verbose-table td {
-    border: 1px solid #ddd;
-    padding: 6px 10px;
-    text-align: left;
-  }
-  .verbose-table th {
-    background: #667eea;
-    color: #fff;
-  }
-  .verbose-table tr:nth-child(even) {
-    background: #f5f5f5;
-  }
-</style>
-</head>
-<body>
-<div class="container">
-  <h1>Happy Numbers Calculator</h1>
-  <p class="subtitle">Find happy numbers with custom parameters</p>
-  <form method="GET" action="/">
-    <label for="limit">Limit (how many happy numbers to find)</label>
-    <input type="number" id="limit" name="limit" value="9" min="1" max="1000">
-
-    <label for="base">Base (number base, e.g. 10)</label>
-    <input type="number" id="base" name="base" value="10" min="2" max="36">
-
-    <label for="pow">Power (sum of digits raised to this power)</label>
-    <input type="number" id="pow" name="pow" value="2" min="1" max="10">
-
-    <div class="checkbox-row">
-      <input type="checkbox" id="pure" name="pure" value="1">
-      <label for="pure" style="margin-bottom:0;">Show pure happy numbers (unique by digit signature)</label>
-    </div>
-
-    <div class="checkbox-row">
-      <input type="checkbox" id="verbose" name="verbose" value="1">
-      <label for="verbose" style="margin-bottom:0;">Verbose mode (show internal computation)</label>
-    </div>
-
-    <button type="submit">Calculate Happy Numbers</button>
-  </form>
-
-  <!--RESULTS_PLACEHOLDER-->
-
-  <div class="info">
-    <strong>What are happy numbers?</strong> A happy number is defined by the process of replacing the number by the sum of the squares of its digits, and repeating until the number equals 1 (happy) or loops endlessly in a cycle (unhappy). <strong>1</strong> is a happy number.
-  </div>
-
-  <div class="footer">
-    Powered by Raku
-  </div>
-</div>
-</body>
-</html>
-END
+# Load HTML template from external file
+my $FORM_HTML = 'templates.html'.IO.e ?? 'templates.html'.IO.slurp !! default-template();
 
 # Simple HTTP server
 my $host = '0.0.0.0';
@@ -328,6 +125,38 @@ sub build-results-html($result, :$verbose) {
 
     $html ~= '</div>';
     return $html;
+}
+
+# Fallback template if file is missing
+sub default-template() {
+    return Q:to/END/;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Happy Numbers Calculator</title>
+<style>
+  body { font-family: sans-serif; background: #667eea; display: flex; justify-content: center; padding: 20px; }
+  .container { background: #fff; border-radius: 16px; padding: 40px; max-width: 600px; width: 100%; }
+  button { width: 100%; padding: 14px; background: #667eea; color: #fff; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; }
+  input { width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #ccc; }
+  .results { margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Happy Numbers Calculator</h1>
+  <form method="GET" action="/">
+    <label>Limit</label><input type="number" name="limit" value="9">
+    <label>Base</label><input type="number" name="base" value="10">
+    <label>Power</label><input type="number" name="pow" value="2">
+    <button type="submit">Calculate</button>
+  </form>
+  <!--RESULTS_PLACEHOLDER-->
+</div>
+</body>
+</html>
+END
 }
 
 # Extracted happy numbers calculation logic
