@@ -1,6 +1,8 @@
 #! /usr/bin/env raku
 
 use v6.d;
+use lib 'lib';
+use HappyNumbers;
 
 # Load HTML template from external file
 my $FORM_HTML = 'templates.html'.IO.e ?? 'templates.html'.IO.slurp !! default-template();
@@ -51,7 +53,9 @@ loop {
         $pow = 1 if $pow < 1;
         $pow = 10 if $pow > 10;
 
-        my $result = calculate-happy-numbers(:$limit, :$base, :$pow, :$get-pure, :$verbose);
+        # Use the HappyNumbers library
+        my $calc = HappyNumbers::Calculator.new(:$limit, :$base, :power($pow), :$get-pure, :$verbose);
+        my $result = $calc.calculate();
 
         # Build results HTML
         my $results-html = build-results-html($result, :$verbose);
@@ -82,48 +86,77 @@ loop {
     $client.close;
 }
 
+# HTML rendering subs
 sub build-results-html($result, :$verbose) {
     my $html = '<div class="results">';
     $html ~= '<h2>Results</h2>';
 
-    # Stats
-    $html ~= '<div class="stat-row"><span class="stat-label">Happy Numbers Found:</span><span class="stat-value">' ~ $result<happy-numbers>.elems ~ '</span></div>';
-    $html ~= '<div class="stat-row"><span class="stat-label">Pure Happy Numbers:</span><span class="stat-value">' ~ $result<pure-numbers>.elems ~ '</span></div>';
-    $html ~= '<div class="stat-row"><span class="stat-label">Max Number Tried:</span><span class="stat-value">' ~ ($result<max-tried> // 'N/A') ~ '</span></div>';
-
-    # Happy numbers list
-    $html ~= '<h3 style="margin-top:16px;margin-bottom:8px;color:#333;font-size:1rem;">Happy Numbers</h3>';
-    $html ~= '<div class="number-list">';
-    for $result<happy-numbers> -> $n {
-        $html ~= '<span class="number-tag">' ~ $n ~ '</span>';
-    }
+    # Stats grid
+    $html ~= '<div class="stats-grid">';
+    $html ~= stat-card('Happy Numbers', $result<happy-numbers>.elems);
+    $html ~= stat-card('Pure Numbers', $result<pure-numbers>.elems);
+    $html ~= stat-card('Max Tried', $result<max-tried> // 'N/A');
+    $html ~= stat-card('Hash Size', $result<hash-size>);
     $html ~= '</div>';
 
-    # Pure numbers list
-    $html ~= '<h3 style="margin-top:16px;margin-bottom:8px;color:#333;font-size:1rem;">Pure Happy Numbers</h3>';
-    $html ~= '<div class="number-list">';
-    for $result<pure-numbers> -> $n {
-        $html ~= '<span class="number-tag">' ~ $n ~ '</span>';
-    }
-    $html ~= '</div>';
+    # Happy numbers
+    $html ~= number-section('Happy Numbers', $result<happy-numbers>);
 
-    # Verbose table
+    # Pure numbers
+    $html ~= number-section('Pure Happy Numbers', $result<pure-numbers>);
+
+    # Sequences (verbose)
+    if $verbose && $result<sequences>.elems > 0 {
+        $html ~= sequence-section($result<sequences>);
+    }
+
+    # Verbose computation table
     if $verbose && $result<happiness>.elems > 0 {
-        $html ~= '<h3 style="margin-top:16px;margin-bottom:8px;color:#333;font-size:1rem;">Computation Details</h3>';
-        $html ~= '<table class="verbose-table">';
-        $html ~= '<tr><th>Number</th><th>Next</th><th>Iterations</th><th>Happy?</th></tr>';
-        for $result<happiness>.sort: *.key.Int -> $p {
-            my $key = $p.key;
-            my $data = $p.value;
-            my $next = $data<next> // 'N/A';
-            my $iter = $data<iter> // 'N/A';
-            my $is-happy = $data<zhappy> ?? 'Yes' !! 'No';
-            $html ~= '<tr><td>' ~ $key ~ '</td><td>' ~ $next ~ '</td><td>' ~ $iter ~ '</td><td>' ~ $is-happy ~ '</td></tr>';
-        }
-        $html ~= '</table>';
+        $html ~= verbose-table($result<happiness>);
     }
 
     $html ~= '</div>';
+    return $html;
+}
+
+sub stat-card($label, $value) {
+    return '<div class="stat-card"><div class="value">' ~ $value ~ '</div><div class="label">' ~ $label ~ '</div></div>';
+}
+
+sub number-section($title, @numbers) {
+    return '' unless @numbers.elems > 0;
+    my $html = '<div class="number-section"><h3>' ~ $title ~ '</h3><div class="number-list">';
+    for @numbers -> $n {
+        $html ~= '<span class="number-tag">' ~ $n ~ '</span>';
+    }
+    $html ~= '</div></div>';
+    return $html;
+}
+
+sub sequence-section(@sequences) {
+    my $html = '<div class="sequence-section"><h3>Sequences</h3>';
+    for @sequences -> $seq {
+        my $num = $seq.key;
+        my $path = $seq.value;
+        $html ~= '<div class="sequence-card"><strong>' ~ $num ~ ':</strong> ' ~ $path ~ '</div>';
+    }
+    $html ~= '</div>';
+    return $html;
+}
+
+sub verbose-table(%happiness) {
+    my $html = '<div class="sequence-section"><h3>Computation Details</h3>';
+    $html ~= '<table class="verbose-table">';
+    $html ~= '<tr><th>Number</th><th>Next</th><th>Iterations</th><th>Happy?</th></tr>';
+    for %happiness.sort: *.key.Int -> $p {
+        my $key = $p.key;
+        my $data = $p.value;
+        my $next = $data<next> // 'N/A';
+        my $iter = $data<iter> // 'N/A';
+        my $is-happy = $data<zhappy> ?? 'Yes' !! 'No';
+        $html ~= '<tr><td>' ~ $key ~ '</td><td>' ~ $next ~ '</td><td>' ~ $iter ~ '</td><td>' ~ $is-happy ~ '</td></tr>';
+    }
+    $html ~= '</table></div>';
     return $html;
 }
 
@@ -157,41 +190,4 @@ sub default-template() {
 </body>
 </html>
 END
-}
-
-# Extracted happy numbers calculation logic
-sub calculate-happy-numbers(:$limit, :$base, :$pow, :$get-pure, :$verbose) {
-    my @happy = 1;
-    my %happiness = 1 => %(next=>1, iter=>0, :zhappy);
-    my $max-tried;
-
-    my $normalize-num = *.base($base).comb.grep(* !~~ 0).sort.join.parse-base($base);
-
-    for 2 .. * -> $number {
-        @happy.push($number) if happy($normalize-num($number), :%happiness, :$normalize-num, :$base, :$pow)<zhappy>;
-        last if @happy.unique(:as($get-pure ?? $normalize-num !! *)).elems == $limit;
-        LAST {
-            $max-tried = $number;
-        }
-    }
-
-    my @pure = @happy.unique(:as($normalize-num));
-
-    return %(
-        :happy-numbers(@happy),
-        :pure-numbers(@pure),
-        :max-tried($max-tried),
-        :happiness(%happiness),
-        :hash-size(%happiness.elems),
-    );
-}
-
-sub happy($n, $seq = "", :%happiness, :$normalize-num, :$base, :$pow) {
-    my sub is-happy {
-        my $next = $normalize-num($n.base($base).comb.map(*.parse-base($base) ** $pow).sum);
-        %happiness{$n} = %(iter => 1);
-        return %happiness{$n} = %(|%($_), :$next, iter => $_<iter> + 1)
-            with happy($next, ($seq.Bool ?? $seq !! $n) ~ " => $next", :%happiness, :$normalize-num, :$base, :$pow);
-    }
-    return $n == 1 ?? %(|%happiness<1>, iter => 1) !! %happiness{$n} || is-happy()
 }
