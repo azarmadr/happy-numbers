@@ -1,2 +1,3 @@
 - [Raku HTTP server](raku-http-server.md) — built-in `IO::Socket::INET` uses `:localhost` and `:localport` (not `:host`/`:port`)
 - [Happy numbers web app](happy-numbers-web.md) — Raku web app with HTML form serving on port 5000 via raw socket server
+- [Raku module structure](raku-module-structure.md) — `use lib 'lib'` + `unit module` + `class` in `.rakumod` files; positional params must come before named params in method signatures

@@ -3,276 +3,200 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Happy Numbers Calculator</title>
+<title>Happy Numbers</title>
 <style>
-  :root {
-    --primary: #667eea;
-    --secondary: #764ba2;
-    --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --card-bg: #fff;
-    --text-main: #333;
-    --text-muted: #666;
-    --border: #e0e0e0;
-    --radius: 12px;
-    --shadow: 0 8px 32px rgba(0,0,0,0.15);
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', system-ui, sans-serif;
-    background: var(--bg-gradient);
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    padding: 24px;
-  }
-  .container {
-    background: var(--card-bg);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
+    background: #fafafa;
+    color: #222;
     max-width: 720px;
-    width: 100%;
-    padding: 36px;
+    margin: 0 auto;
+    padding: 24px;
+    line-height: 1.5;
   }
-  h1 {
-    text-align: center;
-    color: var(--text-main);
-    font-size: 1.8rem;
-    margin-bottom: 4px;
-  }
-  .subtitle {
-    text-align: center;
-    color: var(--text-muted);
-    margin-bottom: 28px;
-    font-size: 0.95rem;
-  }
-  .form-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
+
+  details {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px 16px;
     margin-bottom: 16px;
   }
-  .form-group {
-    display: flex;
-    flex-direction: column;
-  }
-  .form-group.full-width {
-    grid-column: 1 / -1;
-  }
-  label {
-    font-size: 0.85rem;
+  summary {
     font-weight: 600;
-    color: var(--text-muted);
-    margin-bottom: 6px;
+    cursor: pointer;
+    color: #444;
+  }
+  summary:hover { color: #000; }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .form-group { display: flex; flex-direction: column; }
+  .form-group.full-width { grid-column: 1 / -1; }
+  label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 4px;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
   }
   input[type="number"] {
-    padding: 10px 12px;
-    border: 2px solid var(--border);
-    border-radius: 8px;
-    font-size: 1rem;
-    transition: border-color 0.2s;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.95rem;
   }
-  input[type="number"]:focus {
-    outline: none;
-    border-color: var(--primary);
-  }
+  input[type="checkbox"] { accent-color: #333; }
   .checkbox-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 12px;
-  }
-  input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--primary);
+    gap: 8px;
+    margin-bottom: 8px;
   }
   .checkbox-row label {
-    margin-bottom: 0;
     text-transform: none;
     font-weight: 500;
-    color: var(--text-main);
+    color: #333;
+    margin-bottom: 0;
   }
   button {
     width: 100%;
-    padding: 14px;
-    background: var(--bg-gradient);
+    padding: 10px;
+    background: #222;
     color: #fff;
     border: none;
-    border-radius: 8px;
-    font-size: 1.05rem;
-    font-weight: 600;
+    border-radius: 4px;
+    font-size: 0.95rem;
     cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
   }
-  button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102,126,234,0.4);
-  }
+  button:hover { background: #444; }
+
   .results {
-    margin-top: 24px;
-    padding: 20px;
-    background: #f8f9fa;
-    border-radius: var(--radius);
-    border-left: 4px solid var(--primary);
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 16px;
   }
   .results h2 {
-    color: var(--text-main);
-    font-size: 1.2rem;
-    margin-bottom: 14px;
+    font-size: 1rem;
+    margin: 0 0 12px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
   }
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
-    margin-bottom: 18px;
-  }
-  .stat-card {
-    background: #fff;
-    padding: 14px;
-    border-radius: 8px;
-    text-align: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  }
-  .stat-card .value {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: var(--primary);
-  }
-  .stat-card .label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-top: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .number-section {
-    margin-top: 16px;
-  }
-  .number-section h3 {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .number-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .number-tag {
-    background: var(--bg-gradient);
-    color: #fff;
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 0.9rem;
-    font-weight: 600;
-  }
-  .sequence-section {
-    margin-top: 16px;
-  }
-  .sequence-section h3 {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .sequence-card {
-    background: #fff;
-    padding: 10px 14px;
-    border-radius: 8px;
-    margin-bottom: 6px;
+
+  .output-line {
     font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
-    color: var(--text-main);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    font-size: 0.9rem;
+    padding: 4px 0;
+    border-bottom: 1px solid #f0f0f0;
   }
-  .verbose-table {
+  .output-line:last-child { border-bottom: none; }
+
+  .number-tag {
+    display: inline-block;
+    background: #f0f0f0;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin: 2px;
+    font-family: monospace;
+    font-size: 0.9rem;
+  }
+  .number-tag.happy { background: #d4edda; }
+
+  details.hash-details {
+    margin-top: 8px;
+    padding: 0;
+    border: none;
+  }
+  details.hash-details summary {
+    font-size: 0.85rem;
+    color: #666;
+    padding: 4px 0;
+  }
+  .hash-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 12px;
     font-size: 0.85rem;
-    border-radius: 8px;
-    overflow: hidden;
+    margin-top: 8px;
   }
-  .verbose-table th, .verbose-table td {
-    padding: 8px 12px;
+  .hash-table th, .hash-table td {
+    padding: 6px 8px;
     text-align: left;
+    border-bottom: 1px solid #eee;
   }
-  .verbose-table th {
-    background: var(--bg-gradient);
-    color: #fff;
+  .hash-table th {
     font-weight: 600;
+    color: #666;
+    font-size: 0.75rem;
+    text-transform: uppercase;
   }
-  .verbose-table tr:nth-child(even) { background: #f5f5f5; }
-  .verbose-table tr:hover { background: #e8e8ff; }
-  .info {
-    margin-top: 20px;
-    padding: 14px;
-    background: #e3f2fd;
-    border-radius: var(--radius);
-    color: #1565c0;
-    font-size: 0.9rem;
-    line-height: 1.5;
+  .hash-table tr:hover { background: #f8f8f8; }
+
+  .sequence-line {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    padding: 6px 8px;
+    background: #f8f8f8;
+    border-radius: 4px;
+    margin-bottom: 6px;
   }
-  .info strong { color: #0d47a1; }
+  .sequence-line .num { font-weight: 600; color: #333; }
+  .sequence-line .arrow { color: #888; }
+
   .footer {
     text-align: center;
-    margin-top: 24px;
     color: #888;
     font-size: 0.8rem;
-  }
-  @media (max-width: 480px) {
-    .form-grid { grid-template-columns: 1fr; }
-    .stats-grid { grid-template-columns: 1fr 1fr; }
+    margin-top: 24px;
   }
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>Happy Numbers Calculator</h1>
+  <h1>Happy Numbers</h1>
   <p class="subtitle">Find happy numbers with custom parameters</p>
 
-  <form method="GET" action="/">
-    <div class="form-grid">
-      <div class="form-group">
-        <label for="limit">Limit</label>
-        <input type="number" id="limit" name="limit" value="9" min="1" max="1000">
-      </div>
-      <div class="form-group">
-        <label for="base">Base</label>
-        <input type="number" id="base" name="base" value="10" min="2" max="36">
-      </div>
-      <div class="form-group">
-        <label for="pow">Power</label>
-        <input type="number" id="pow" name="pow" value="2" min="1" max="10">
-      </div>
-      <div class="form-group full-width">
-        <div class="checkbox-row">
-          <input type="checkbox" id="pure" name="pure" value="1">
-          <label for="pure">Show pure happy numbers (unique by digit signature)</label>
+  <details>
+    <summary>Parameters</summary>
+    <form method="GET" action="/">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="limit">Limit</label>
+          <input type="number" id="limit" name="limit" value="9" min="1" max="1000">
         </div>
-        <div class="checkbox-row">
-          <input type="checkbox" id="verbose" name="verbose" value="1">
-          <label for="verbose">Verbose mode (show internal computation & sequences)</label>
+        <div class="form-group">
+          <label for="base">Base</label>
+          <input type="number" id="base" name="base" value="10" min="2" max="36">
+        </div>
+        <div class="form-group">
+          <label for="pow">Power</label>
+          <input type="number" id="pow" name="pow" value="2" min="1" max="10">
+        </div>
+        <div class="form-group full-width">
+          <div class="checkbox-row">
+            <input type="checkbox" id="pure" name="pure" value="1">
+            <label for="pure">Pure (unique by digit signature)</label>
+          </div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="verbose" name="verbose" value="1">
+            <label for="verbose">Verbose (show hash & sequences)</label>
+          </div>
         </div>
       </div>
-    </div>
-    <button type="submit">Calculate Happy Numbers</button>
-  </form>
+      <button type="submit">Calculate</button>
+    </form>
+  </details>
 
   <!--RESULTS_PLACEHOLDER-->
-
-  <div class="info">
-    <strong>What are happy numbers?</strong> A happy number is defined by the process of replacing the number by the sum of the squares of its digits, and repeating until the number equals 1 (happy) or loops endlessly in a cycle (unhappy). <strong>1</strong> is a happy number.
-  </div>
 
   <div class="footer">
     Powered by Raku
   </div>
-</div>
 </body>
 </html>

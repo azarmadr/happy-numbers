@@ -4,10 +4,8 @@ use v6.d;
 use lib 'lib';
 use HappyNumbers;
 
-# Load HTML template from external file
 my $FORM_HTML = 'templates.html'.IO.e ?? 'templates.html'.IO.slurp !! default-template();
 
-# Simple HTTP server
 my $host = '0.0.0.0';
 my $port = 5000;
 
@@ -38,14 +36,12 @@ loop {
     my $content-type = 'text/html; charset=utf-8';
 
     if %params<limit> || %params<base> || %params<pow> {
-        # Run calculation with provided parameters
         my $limit = (%params<limit> || 9).Int;
         my $base = (%params<base> || 10).Int;
         my $pow = (%params<pow> || 2).Int;
         my $get-pure = %params<pure> ?? True !! False;
         my $verbose = %params<verbose> ?? True !! False;
 
-        # Clamp values for safety
         $limit = 1 if $limit < 1;
         $limit = 1000 if $limit > 1000;
         $base = 2 if $base < 2;
@@ -53,18 +49,14 @@ loop {
         $pow = 1 if $pow < 1;
         $pow = 10 if $pow > 10;
 
-        # Use the HappyNumbers library
         my $calc = HappyNumbers::Calculator.new(:$limit, :$base, :power($pow), :$get-pure, :$verbose);
         my $result = $calc.calculate();
 
-        # Build results HTML
         my $results-html = build-results-html($result, :$verbose);
 
-        # Build response page
         $body = $FORM_HTML;
         $body .= subst('<!--RESULTS_PLACEHOLDER-->', $results-html);
 
-        # Update form values with submitted params
         $body .= subst('value="9"', "value=\"$limit\"", :g);
         $body .= subst('value="10"', "value=\"$base\"", :g);
         $body .= subst('value="2"', "value=\"$pow\"", :g);
@@ -91,102 +83,82 @@ sub build-results-html($result, :$verbose) {
     my $html = '<div class="results">';
     $html ~= '<h2>Results</h2>';
 
-    # Stats grid
-    $html ~= '<div class="stats-grid">';
-    $html ~= stat-card('Happy Numbers', $result<happy-numbers>.elems);
-    $html ~= stat-card('Pure Numbers', $result<pure-numbers>.elems);
-    $html ~= stat-card('Max Tried', $result<max-tried> // 'N/A');
-    $html ~= stat-card('Hash Size', $result<hash-size>);
-    $html ~= '</div>';
+    $html ~= '<div class="output-line">     Happy Numbers(' ~ $result<happy-numbers>.elems ~ '): ' ~ $result<happy-numbers>.join(', ') ~ '</div>';
+    $html ~= '<div class="output-line">Pure Happy Numbers(' ~ $result<pure-numbers>.elems ~ '): ' ~ $result<pure-numbers>.join(', ') ~ '</div>';
+    $html ~= '<div class="output-line">Max Number tried: ' ~ ($result<max-tried> // 'N/A') ~ '</div>';
+    $html ~= '<div class="output-line">Hash size: ' ~ $result<hash-size> ~ '</div>';
 
-    # Happy numbers
-    $html ~= number-section('Happy Numbers', $result<happy-numbers>);
-
-    # Pure numbers
-    $html ~= number-section('Pure Happy Numbers', $result<pure-numbers>);
-
-    # Sequences (verbose)
     if $verbose && $result<sequences>.elems > 0 {
-        $html ~= sequence-section($result<sequences>);
+        $html ~= '<details>';
+        $html ~= '<summary>Sequences (' ~ $result<sequences>.elems ~ ')</summary>';
+        for @($result<sequences>) -> $seq {
+            my $num = $seq.key;
+            my $path = $seq.value;
+            $html ~= '<div class="sequence-line"><span class="num">' ~ $num ~ '</span> <span class="arrow">=></span> ' ~ $path ~ '</div>';
+        }
+        $html ~= '</details>';
     }
 
-    # Verbose computation table
     if $verbose && $result<happiness>.elems > 0 {
-        $html ~= verbose-table($result<happiness>);
+        $html ~= '<details>';
+        $html ~= '<summary>Happiness hash (' ~ $result<happiness>.elems ~ ' entries)</summary>';
+        $html ~= '<table class="hash-table">';
+        $html ~= '<tr><th>Number</th><th>Next</th><th>Iterations</th><th>Happy?</th></tr>';
+        for $result<happiness>.sort: *.key.Int -> $p {
+            my $key = $p.key;
+            my $data = $p.value;
+            my $next = $data<next> // 'N/A';
+            my $iter = $data<iter> // 'N/A';
+            my $is-happy = $data<zhappy> ?? 'Yes' !! 'No';
+            $html ~= '<tr><td>' ~ $key ~ '</td><td>' ~ $next ~ '</td><td>' ~ $iter ~ '</td><td>' ~ $is-happy ~ '</td></tr>';
+        }
+        $html ~= '</table>';
+        $html ~= '</details>';
     }
 
     $html ~= '</div>';
     return $html;
 }
 
-sub stat-card($label, $value) {
-    return '<div class="stat-card"><div class="value">' ~ $value ~ '</div><div class="label">' ~ $label ~ '</div></div>';
-}
-
-sub number-section($title, @numbers) {
-    return '' unless @numbers.elems > 0;
-    my $html = '<div class="number-section"><h3>' ~ $title ~ '</h3><div class="number-list">';
-    for @numbers -> $n {
-        $html ~= '<span class="number-tag">' ~ $n ~ '</span>';
-    }
-    $html ~= '</div></div>';
-    return $html;
-}
-
-sub sequence-section(@sequences) {
-    my $html = '<div class="sequence-section"><h3>Sequences</h3>';
-    for @sequences -> $seq {
-        my $num = $seq.key;
-        my $path = $seq.value;
-        $html ~= '<div class="sequence-card"><strong>' ~ $num ~ ':</strong> ' ~ $path ~ '</div>';
-    }
-    $html ~= '</div>';
-    return $html;
-}
-
-sub verbose-table(%happiness) {
-    my $html = '<div class="sequence-section"><h3>Computation Details</h3>';
-    $html ~= '<table class="verbose-table">';
-    $html ~= '<tr><th>Number</th><th>Next</th><th>Iterations</th><th>Happy?</th></tr>';
-    for %happiness.sort: *.key.Int -> $p {
-        my $key = $p.key;
-        my $data = $p.value;
-        my $next = $data<next> // 'N/A';
-        my $iter = $data<iter> // 'N/A';
-        my $is-happy = $data<zhappy> ?? 'Yes' !! 'No';
-        $html ~= '<tr><td>' ~ $key ~ '</td><td>' ~ $next ~ '</td><td>' ~ $iter ~ '</td><td>' ~ $is-happy ~ '</td></tr>';
-    }
-    $html ~= '</table></div>';
-    return $html;
-}
-
-# Fallback template if file is missing
 sub default-template() {
     return Q:to/END/;
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Happy Numbers Calculator</title>
+<title>Happy Numbers</title>
 <style>
-  body { font-family: sans-serif; background: #667eea; display: flex; justify-content: center; padding: 20px; }
-  .container { background: #fff; border-radius: 16px; padding: 40px; max-width: 600px; width: 100%; }
-  button { width: 100%; padding: 14px; background: #667eea; color: #fff; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; }
-  input { width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #ccc; }
-  .results { margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px; }
+  body { font-family: sans-serif; background: #fafafa; color: #222; max-width: 720px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 1.5rem; }
+  .subtitle { color: #666; font-size: 0.9rem; }
+  details { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
+  summary { font-weight: 600; cursor: pointer; }
+  .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+  button { width: 100%; padding: 10px; background: #222; color: #fff; border: none; border-radius: 4px; }
+  .results { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 16px; }
+  .output-line { font-family: monospace; font-size: 0.9rem; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
+  .sequence-line { font-family: monospace; font-size: 0.85rem; padding: 6px; background: #f8f8f8; border-radius: 4px; margin-bottom: 6px; }
+  .hash-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .hash-table th, .hash-table td { padding: 6px; border-bottom: 1px solid #eee; }
+  .footer { text-align: center; color: #888; font-size: 0.8rem; margin-top: 24px; }
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>Happy Numbers Calculator</h1>
-  <form method="GET" action="/">
-    <label>Limit</label><input type="number" name="limit" value="9">
-    <label>Base</label><input type="number" name="base" value="10">
-    <label>Power</label><input type="number" name="pow" value="2">
-    <button type="submit">Calculate</button>
-  </form>
+  <h1>Happy Numbers</h1>
+  <p class="subtitle">Find happy numbers with custom parameters</p>
+  <details><summary>Parameters</summary>
+    <form method="GET" action="/">
+      <div class="form-grid">
+        <div><label>Limit</label><input type="number" name="limit" value="9"></div>
+        <div><label>Base</label><input type="number" name="base" value="10"></div>
+        <div><label>Power</label><input type="number" name="pow" value="2"></div>
+      </div>
+      <button type="submit">Calculate</button>
+    </form>
+  </details>
   <!--RESULTS_PLACEHOLDER-->
-</div>
+  <div class="footer">Powered by Raku</div>
 </body>
 </html>
 END
