@@ -77,6 +77,123 @@ loop {
 }
 
 # HTML rendering subs
+sub build-tree-html(%happiness) {
+    # Build reverse mapping: each number -> list of numbers that map to it
+    my %children;
+    for %happiness.kv -> $num, $data {
+        my $next = $data<next>;
+        if $next.defined && $next.Str ~~ /^\d+$/ {
+            %children{$next}.push($num);
+        }
+    }
+
+    # Find roots: nodes that are not a "next" value of any OTHER node
+    # (Self-loops are included as roots even if they point to themselves)
+    my %is-child;
+    for %happiness.kv -> $num, $data {
+        my $next = $data<next>;
+        if $next.defined && $next.Str ~~ /^\d+$/ && $next.Str ne $num {
+            %is-child{$num} = True;
+        }
+    }
+    my @roots = %happiness.keys.grep({ !(%is-child{$_}:exists) }).sort: *.Int;
+
+    sub render-node($node, %seen) {
+        my $data = %happiness{$node};
+        my $is-happy = $data<zhappy> ?? 'happy' !! 'sad';
+        my $html = '<div class="tree-node">' ~ $node;
+        $html ~= ' <span class="tree-tag ' ~ $is-happy ~ '">' ~ $is-happy ~ '</span>';
+        if (%children{$node}:exists) {
+            $html ~= '<div class="tree-children">';
+            for %children{$node}.sort: *.Int -> $child {
+                next if $child eq $node; # skip self-loop children
+                next if (%seen{$child}:exists); # prevent cycles
+                my %seen-new = %seen.clone;
+                %seen-new{$child} = True;
+                $html ~= render-node($child, %seen-new);
+            }
+            $html ~= '</div>';
+        }
+        $html ~= '</div>';
+        return $html;
+    }
+
+    # Track all nodes included in the tree from roots
+    my %included;
+    for @roots -> $root {
+        %included{$root} = True;
+        sub mark-children($node, %seen) {
+            if (%children{$node}:exists) {
+                for %children{$node}.sort: *.Int -> $child {
+                    next if $child eq $node;
+                    next if (%seen{$child}:exists);
+                    %included{$child} = True;
+                    my %seen-new = %seen.clone;
+                    %seen-new{$child} = True;
+                    mark-children($child, %seen-new);
+                }
+            }
+        }
+        my %seen-root = %($root => True);
+        mark-children($root, %seen-root);
+    }
+
+    # Add disconnected cyclic components (e.g. sad cycle with no entry point)
+    my @remaining = %happiness.keys.grep({ !(%included{$_}:exists) }).sort: *.Int;
+    while @remaining.elems > 0 {
+        my $start = @remaining[0];
+        # Find the cycle: walk from start until we loop
+        my %cycle-seen;
+        my $current = $start;
+        my $cycle-root;
+        loop {
+            if (%cycle-seen{$current}:exists) {
+                $cycle-root = $current;
+                last;
+            }
+            %cycle-seen{$current} = True;
+            my $next = %happiness{$current}<next>;
+            if $next.defined && $next.Str ~~ /^\d+$/ {
+                $current = $next.Str;
+            } else {
+                last;
+            }
+        }
+        @roots.push($cycle-root) if $cycle-root.defined;
+        # Recompute remaining
+        %included = %();
+        for @roots -> $root {
+            %included{$root} = True;
+            sub mark-children2($node, %seen) {
+                if (%children{$node}:exists) {
+                    for %children{$node}.sort: *.Int -> $child {
+                        next if $child eq $node;
+                        next if (%seen{$child}:exists);
+                        %included{$child} = True;
+                        my %seen-new = %seen.clone;
+                        %seen-new{$child} = True;
+                        mark-children2($child, %seen-new);
+                    }
+                }
+            }
+            my %seen-root = %($root => True);
+            mark-children2($root, %seen-root);
+        }
+        @remaining = %happiness.keys.grep({ !(%included{$_}:exists) }).sort: *.Int;
+    }
+
+    my $html = '<details>';
+    $html ~= '<summary>Tree View</summary>';
+    $html ~= '<div class="tree-view">';
+    for @roots -> $root {
+        my %seen = %($root => True);
+        $html ~= render-node($root, %seen);
+    }
+    $html ~= '</div>';
+    $html ~= '</details>';
+    return $html;
+}
+
 sub build-results-html($result) {
     my $html = '<div class="results">';
     $html ~= '<h2>Results</h2>';
@@ -103,6 +220,11 @@ sub build-results-html($result) {
         }
         $html ~= '</table>';
         $html ~= '</details>';
+    }
+
+    # Tree view of the happiness hash
+    if $result<happiness>.elems > 0 {
+        $html ~= build-tree-html($result<happiness>);
     }
 
     # Sequences
