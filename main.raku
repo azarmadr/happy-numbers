@@ -40,7 +40,6 @@ loop {
         my $base = (%params<base> || 10).Int;
         my $pow = (%params<pow> || 2).Int;
         my $get-pure = %params<pure> ?? True !! False;
-        my $verbose = %params<verbose> ?? True !! False;
 
         $limit = 1 if $limit < 1;
         $limit = 1000 if $limit > 1000;
@@ -49,10 +48,10 @@ loop {
         $pow = 1 if $pow < 1;
         $pow = 10 if $pow > 10;
 
-        my $calc = HappyNumbers::Calculator.new(:$limit, :$base, :power($pow), :$get-pure, :$verbose);
+        my $calc = HappyNumbers::Calculator.new(:$limit, :$base, :power($pow), :$get-pure);
         my $result = $calc.calculate();
 
-        my $results-html = build-results-html($result, :$verbose);
+        my $results-html = build-results-html($result);
 
         $body = $FORM_HTML;
         $body .= subst('<!--RESULTS_PLACEHOLDER-->', $results-html);
@@ -61,7 +60,6 @@ loop {
         $body .= subst('value="10"', "value=\"$base\"", :g);
         $body .= subst('value="2"', "value=\"$pow\"", :g);
         $body .= subst('name="pure" value="1"', 'name="pure" value="1"' ~ ($get-pure ?? ' checked' !! ''), :g);
-        $body .= subst('name="verbose" value="1"', 'name="verbose" value="1"' ~ ($verbose ?? ' checked' !! ''), :g);
     } else {
         $body = $FORM_HTML;
         $body .= subst('<!--RESULTS_PLACEHOLDER-->', '');
@@ -79,7 +77,7 @@ loop {
 }
 
 # HTML rendering subs
-sub build-results-html($result, :$verbose) {
+sub build-results-html($result) {
     my $html = '<div class="results">';
     $html ~= '<h2>Results</h2>';
 
@@ -88,20 +86,9 @@ sub build-results-html($result, :$verbose) {
     $html ~= '<div class="output-line">Max Number tried: ' ~ ($result<max-tried> // 'N/A') ~ '</div>';
     $html ~= '<div class="output-line">Hash size: ' ~ $result<hash-size> ~ '</div>';
 
-    if $verbose && $result<sequences>.elems > 0 {
-        $html ~= '<details>';
-        $html ~= '<summary>Sequences (' ~ $result<sequences>.elems ~ ')</summary>';
-        for @($result<sequences>) -> $seq {
-            my $num = $seq.key;
-            my $path = $seq.value;
-            $html ~= '<div class="sequence-line"><span class="num">' ~ $num ~ '</span> <span class="arrow">=></span> ' ~ $path ~ '</div>';
-        }
-        $html ~= '</details>';
-    }
-
-    if $verbose && $result<happiness>.elems > 0 {
-        $html ~= '<details>';
-        $html ~= '<summary>Happiness hash (' ~ $result<happiness>.elems ~ ' entries)</summary>';
+    # Interactive hash table
+    if $result<happiness>.elems > 0 {
+        $html ~= '<h3 style="font-size:0.85rem;color:#666;margin-top:16px;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Happiness Hash (' ~ $result<happiness>.elems ~ ' entries)</h3>';
         $html ~= '<table class="hash-table">';
         $html ~= '<tr><th>Number</th><th>Next</th><th>Iterations</th><th>Happy?</th></tr>';
         for $result<happiness>.sort: *.key.Int -> $p {
@@ -110,10 +97,20 @@ sub build-results-html($result, :$verbose) {
             my $next = $data<next> // 'N/A';
             my $iter = $data<iter> // 'N/A';
             my $is-happy = $data<zhappy> ?? 'Yes' !! 'No';
-            $html ~= '<tr><td>' ~ $key ~ '</td><td>' ~ $next ~ '</td><td>' ~ $iter ~ '</td><td>' ~ $is-happy ~ '</td></tr>';
+            my $next-link = $next ~~ /^\d+$/ ?? '<a onclick="jumpTo(' ~ $next ~ ')">' ~ $next ~ '</a>' !! $next;
+            $html ~= '<tr id="num-' ~ $key ~ '"><td>' ~ $key ~ '</td><td>' ~ $next-link ~ '</td><td>' ~ $iter ~ '</td><td>' ~ $is-happy ~ '</td></tr>';
         }
         $html ~= '</table>';
-        $html ~= '</details>';
+    }
+
+    # Sequences
+    if $result<sequences>.elems > 0 {
+        $html ~= '<h3 style="font-size:0.85rem;color:#666;margin-top:16px;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Sequences</h3>';
+        for @($result<sequences>) -> $seq {
+            my $num = $seq.key;
+            my $path = $seq.value;
+            $html ~= '<div class="sequence-line"><span class="num">' ~ $num ~ '</span> <span class="arrow">=></span> ' ~ $path ~ '</div>';
+        }
     }
 
     $html ~= '</div>';
@@ -141,8 +138,19 @@ sub default-template() {
   .sequence-line { font-family: monospace; font-size: 0.85rem; padding: 6px; background: #f8f8f8; border-radius: 4px; margin-bottom: 6px; }
   .hash-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
   .hash-table th, .hash-table td { padding: 6px; border-bottom: 1px solid #eee; }
+  .hash-table a { color: #1565c0; text-decoration: underline; cursor: pointer; }
   .footer { text-align: center; color: #888; font-size: 0.8rem; margin-top: 24px; }
 </style>
+<script>
+  function jumpTo(id) {
+    var el = document.getElementById('num-' + id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight');
+      setTimeout(function() { el.classList.remove('highlight'); }, 1200);
+    }
+  }
+</script>
 </head>
 <body>
   <h1>Happy Numbers</h1>

@@ -99,27 +99,17 @@
   }
   .output-line:last-child { border-bottom: none; }
 
-  .number-tag {
-    display: inline-block;
-    background: #f0f0f0;
-    padding: 2px 8px;
-    border-radius: 3px;
-    margin: 2px;
-    font-family: monospace;
-    font-size: 0.9rem;
-  }
-  .number-tag.happy { background: #d4edda; }
-
-  details.hash-details {
-    margin-top: 8px;
-    padding: 0;
-    border: none;
-  }
-  details.hash-details summary {
+  .sequence-line {
+    font-family: 'Courier New', monospace;
     font-size: 0.85rem;
-    color: #666;
-    padding: 4px 0;
+    padding: 6px 8px;
+    background: #f8f8f8;
+    border-radius: 4px;
+    margin-bottom: 6px;
   }
+  .sequence-line .num { font-weight: 600; color: #333; }
+  .sequence-line .arrow { color: #888; }
+
   .hash-table {
     width: 100%;
     border-collapse: collapse;
@@ -137,18 +127,22 @@
     font-size: 0.75rem;
     text-transform: uppercase;
   }
-  .hash-table tr:hover { background: #f8f8f8; }
-
-  .sequence-line {
-    font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
-    padding: 6px 8px;
-    background: #f8f8f8;
-    border-radius: 4px;
-    margin-bottom: 6px;
+  .hash-table tr { transition: background 0.3s; }
+  .hash-table tr:hover { background: #f0f0f0; }
+  .hash-table tr.highlight {
+    background: #fff3cd;
+    animation: flash 1s ease-out;
   }
-  .sequence-line .num { font-weight: 600; color: #333; }
-  .sequence-line .arrow { color: #888; }
+  @keyframes flash {
+    0% { background: #ffeb3b; }
+    100% { background: #fff3cd; }
+  }
+  .hash-table a {
+    color: #1565c0;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .hash-table a:hover { color: #0d47a1; }
 
   .footer {
     text-align: center;
@@ -157,6 +151,16 @@
     margin-top: 24px;
   }
 </style>
+<script>
+  function jumpTo(id) {
+    var el = document.getElementById('num-' + id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight');
+      setTimeout(function() { el.classList.remove('highlight'); }, 1200);
+    }
+  }
+</script>
 </head>
 <body>
   <h1>Happy Numbers</h1>
@@ -182,10 +186,6 @@
           <div class="checkbox-row">
             <input type="checkbox" id="pure" name="pure" value="1">
             <label for="pure">Pure (unique by digit signature)</label>
-          </div>
-          <div class="checkbox-row">
-            <input type="checkbox" id="verbose" name="verbose" value="1">
-            <label for="verbose">Verbose (show hash & sequences)</label>
           </div>
         </div>
       </div>
