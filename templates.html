@@ -144,34 +144,30 @@
   }
   .hash-table a:hover { color: #0d47a1; }
 
-  .tree-view {
-    font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
+  .graph-container {
+    overflow-x: auto;
     margin-top: 8px;
+    padding: 8px 0;
   }
-  .tree-node {
-    padding: 2px 0;
+  .graph-svg {
+    display: block;
+    margin: 0 auto;
   }
-  .tree-children {
-    margin-left: 16px;
-    padding-left: 8px;
-    border-left: 1px solid #ddd;
+  .graph-legend {
+    text-align: center;
+    font-size: 0.8rem;
+    margin-top: 8px;
+    color: #666;
   }
-  .tree-tag {
-    font-size: 0.7rem;
-    padding: 1px 6px;
-    border-radius: 3px;
-    text-transform: uppercase;
-    margin-left: 4px;
+  .legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin: 0 4px 0 12px;
   }
-  .tree-tag.happy {
-    background: #d4edda;
-    color: #155724;
-  }
-  .tree-tag.sad {
-    background: #f8d7da;
-    color: #721c24;
-  }
+  .legend-dot.happy { background: #4caf50; }
+  .legend-dot.sad { background: #f44336; }
 
   .footer {
     text-align: center;

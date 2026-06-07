@@ -77,118 +77,87 @@ loop {
 }
 
 # HTML rendering subs
-sub build-tree-html(%happiness) {
-    # Build reverse mapping: each number -> list of numbers that map to it
-    my %children;
-    for %happiness.kv -> $num, $data {
-        my $next = $data<next>;
-        if $next.defined && $next.Str ~~ /^\d+$/ {
-            %children{$next}.push($num);
-        }
+sub build-graph-html(%happiness) {
+    my @nodes = %happiness.keys.sort: *.Int;
+    my $n = @nodes.elems;
+    return '' if $n == 0;
+
+    # Layout parameters
+    my $cols = ($n <= 20) ?? 5 !! ($n <= 50) ?? 8 !! 10;
+    my $spacing = 70;
+    my $margin = 40;
+    my $r = 22;
+    my $rows = ceiling($n / $cols);
+    my $width = $cols * $spacing + $margin * 2;
+    my $height = $rows * $spacing + $margin * 2;
+
+    # Position map
+    my %pos;
+    for @nodes.kv -> $i, $node {
+        my $col = $i % $cols;
+        my $row = floor($i / $cols);
+        %pos{$node} = %(
+            x => $margin + $col * $spacing + $spacing / 2,
+            y => $margin + $row * $spacing + $spacing / 2,
+        );
     }
 
-    # Find roots: nodes that are not a "next" value of any OTHER node
-    # (Self-loops are included as roots even if they point to themselves)
-    my %is-child;
-    for %happiness.kv -> $num, $data {
-        my $next = $data<next>;
-        if $next.defined && $next.Str ~~ /^\d+$/ && $next.Str ne $num {
-            %is-child{$num} = True;
-        }
-    }
-    my @roots = %happiness.keys.grep({ !(%is-child{$_}:exists) }).sort: *.Int;
-
-    sub render-node($node, %seen) {
+    sub node-color($node) {
         my $data = %happiness{$node};
-        my $is-happy = $data<zhappy> ?? 'happy' !! 'sad';
-        my $html = '<div class="tree-node">' ~ $node;
-        $html ~= ' <span class="tree-tag ' ~ $is-happy ~ '">' ~ $is-happy ~ '</span>';
-        if (%children{$node}:exists) {
-            $html ~= '<div class="tree-children">';
-            for %children{$node}.sort: *.Int -> $child {
-                next if $child eq $node; # skip self-loop children
-                next if (%seen{$child}:exists); # prevent cycles
-                my %seen-new = %seen.clone;
-                %seen-new{$child} = True;
-                $html ~= render-node($child, %seen-new);
-            }
-            $html ~= '</div>';
-        }
-        $html ~= '</div>';
-        return $html;
+        return $data<zhappy> ?? '#4caf50' !! '#f44336';
     }
 
-    # Track all nodes included in the tree from roots
-    my %included;
-    for @roots -> $root {
-        %included{$root} = True;
-        sub mark-children($node, %seen) {
-            if (%children{$node}:exists) {
-                for %children{$node}.sort: *.Int -> $child {
-                    next if $child eq $node;
-                    next if (%seen{$child}:exists);
-                    %included{$child} = True;
-                    my %seen-new = %seen.clone;
-                    %seen-new{$child} = True;
-                    mark-children($child, %seen-new);
-                }
-            }
+    sub edge-str($from, $to) {
+        my $p1 = %pos{$from};
+        my $p2 = %pos{$to};
+        return '' unless $p1 && $p2;
+        my $dx = $p2<x> - $p1<x>;
+        my $dy = $p2<y> - $p1<y>;
+        my $dist = sqrt($dx * $dx + $dy * $dy);
+        return '' if $dist == 0;
+        my $ux = $dx / $dist;
+        my $uy = $dy / $dist;
+        my $x1 = $p1<x> + $ux * $r;
+        my $y1 = $p1<y> + $uy * $r;
+        my $x2 = $p2<x> - $ux * $r;
+        my $y2 = $p2<y> - $uy * $r;
+        # For self-loops, draw a small circle above the node
+        if $from eq $to {
+            my $cx = $p1<x>;
+            my $cy = $p1<y> - $r - 10;
+            return '<path d="M ' ~ $cx ~ ',' ~ ($p1<y> - $r) ~ ' Q ' ~ ($cx - 20) ~ ',' ~ $cy ~ ' ' ~ $cx ~ ',' ~ $cy ~ ' Q ' ~ ($cx + 20) ~ ',' ~ $cy ~ ' ' ~ $cx ~ ',' ~ ($p1<y> - $r) ~ '" fill="none" stroke="#888" stroke-width="1.5" marker-end="url(#arrow)" />';
         }
-        my %seen-root = %($root => True);
-        mark-children($root, %seen-root);
+        return '<line x1="' ~ $x1 ~ '" y1="' ~ $y1 ~ '" x2="' ~ $x2 ~ '" y2="' ~ $y2 ~ '" stroke="#888" stroke-width="1.5" marker-end="url(#arrow)" />';
     }
 
-    # Add disconnected cyclic components (e.g. sad cycle with no entry point)
-    my @remaining = %happiness.keys.grep({ !(%included{$_}:exists) }).sort: *.Int;
-    while @remaining.elems > 0 {
-        my $start = @remaining[0];
-        # Find the cycle: walk from start until we loop
-        my %cycle-seen;
-        my $current = $start;
-        my $cycle-root;
-        loop {
-            if (%cycle-seen{$current}:exists) {
-                $cycle-root = $current;
-                last;
-            }
-            %cycle-seen{$current} = True;
-            my $next = %happiness{$current}<next>;
-            if $next.defined && $next.Str ~~ /^\d+$/ {
-                $current = $next.Str;
-            } else {
-                last;
-            }
+    my $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' ~ $width ~ '" height="' ~ $height ~ '" viewBox="0 0 ' ~ $width ~ ' ' ~ $height ~ '" class="graph-svg">';
+    $svg ~= '<defs>';
+    $svg ~= '<marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#888" /></marker>';
+    $svg ~= '</defs>';
+
+    # Edges first (so they go behind nodes)
+    for @nodes -> $node {
+        my $next = %happiness{$node}<next>;
+        if $next.defined && $next.Str ~~ /^\d+$/ && (%pos{$next.Str}:exists) {
+            $svg ~= edge-str($node, $next.Str);
         }
-        @roots.push($cycle-root) if $cycle-root.defined;
-        # Recompute remaining
-        %included = %();
-        for @roots -> $root {
-            %included{$root} = True;
-            sub mark-children2($node, %seen) {
-                if (%children{$node}:exists) {
-                    for %children{$node}.sort: *.Int -> $child {
-                        next if $child eq $node;
-                        next if (%seen{$child}:exists);
-                        %included{$child} = True;
-                        my %seen-new = %seen.clone;
-                        %seen-new{$child} = True;
-                        mark-children2($child, %seen-new);
-                    }
-                }
-            }
-            my %seen-root = %($root => True);
-            mark-children2($root, %seen-root);
-        }
-        @remaining = %happiness.keys.grep({ !(%included{$_}:exists) }).sort: *.Int;
     }
+
+    # Nodes
+    for @nodes -> $node {
+        my $p = %pos{$node};
+        my $color = node-color($node);
+        $svg ~= '<circle cx="' ~ $p<x> ~ '" cy="' ~ $p<y> ~ '" r="' ~ $r ~ '" fill="' ~ $color ~ '" stroke="#fff" stroke-width="2" />';
+        $svg ~= '<text x="' ~ $p<x> ~ '" y="' ~ ($p<y> + 5) ~ '" text-anchor="middle" fill="#fff" font-size="13" font-family="monospace">' ~ $node ~ '</text>';
+    }
+
+    $svg ~= '</svg>';
 
     my $html = '<details>';
-    $html ~= '<summary>Tree View</summary>';
-    $html ~= '<div class="tree-view">';
-    for @roots -> $root {
-        my %seen = %($root => True);
-        $html ~= render-node($root, %seen);
-    }
+    $html ~= '<summary>Graph View</summary>';
+    $html ~= '<div class="graph-container">';
+    $html ~= $svg;
+    $html ~= '<div class="graph-legend"><span class="legend-dot happy"></span> Happy <span class="legend-dot sad"></span> Sad</div>';
     $html ~= '</div>';
     $html ~= '</details>';
     return $html;
@@ -222,9 +191,9 @@ sub build-results-html($result) {
         $html ~= '</details>';
     }
 
-    # Tree view of the happiness hash
+    # Graph view of the happiness hash
     if $result<happiness>.elems > 0 {
-        $html ~= build-tree-html($result<happiness>);
+        $html ~= build-graph-html($result<happiness>);
     }
 
     # Sequences
