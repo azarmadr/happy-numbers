@@ -88,7 +88,8 @@ sub build-results-html($result) {
 
     # Interactive hash table
     if $result<happiness>.elems > 0 {
-        $html ~= '<h3 style="font-size:0.85rem;color:#666;margin-top:16px;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Happiness Hash (' ~ $result<happiness>.elems ~ ' entries)</h3>';
+        $html ~= '<details>';
+        $html ~= '<summary>Happiness Hash (' ~ $result<happiness>.elems ~ ' entries)</summary>';
         $html ~= '<table class="hash-table">';
         $html ~= '<tr><th>Number</th><th>Next</th><th>Iterations</th><th>Happy?</th></tr>';
         for $result<happiness>.sort: *.key.Int -> $p {
@@ -101,16 +102,19 @@ sub build-results-html($result) {
             $html ~= '<tr id="num-' ~ $key ~ '"><td>' ~ $key ~ '</td><td>' ~ $next-link ~ '</td><td>' ~ $iter ~ '</td><td>' ~ $is-happy ~ '</td></tr>';
         }
         $html ~= '</table>';
+        $html ~= '</details>';
     }
 
     # Sequences
     if $result<sequences>.elems > 0 {
-        $html ~= '<h3 style="font-size:0.85rem;color:#666;margin-top:16px;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Sequences</h3>';
+        $html ~= '<details>';
+        $html ~= '<summary>Sequences (' ~ $result<sequences>.elems ~ ')</summary>';
         for @($result<sequences>) -> $seq {
             my $num = $seq.key;
             my $path = $seq.value;
             $html ~= '<div class="sequence-line"><span class="num">' ~ $num ~ '</span> <span class="arrow">=></span> ' ~ $path ~ '</div>';
         }
+        $html ~= '</details>';
     }
 
     $html ~= '</div>';
