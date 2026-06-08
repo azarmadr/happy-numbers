@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Happy Numbers Calculator</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+            color: #222;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 3rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-section {
+            background: #f8f9fa;
+            padding: 2rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            border: 1px solid #e9ecef;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-size: 0.95rem;
+        }
+
+        input[type="number"],
+        input[type="checkbox"] {
+            padding: 0.75rem;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+        }
+
+        button {
+            padding: 0.75rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        #calculate-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            flex: 1;
+        }
+
+        #calculate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        #calculate-btn:active {
+            transform: translateY(0);
+        }
+
+        #reset-btn {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        #reset-btn:hover {
+            background: #dee2e6;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+            color: #667eea;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results-section {
+            display: none;
+        }
+
+        .results-section.active {
+            display: block;
+        }
+
+        .summary {
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid #667eea;
+        }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            font-size: 1.05rem;
+        }
+
+        .summary-item strong {
+            color: #667eea;
+        }
+
+        details {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        summary {
+            font-weight: 600;
+            cursor: pointer;
+            color: #333;
+            padding: 0.5rem 0;
+            user-select: none;
+        }
+
+        summary:hover {
+            color: #667eea;
+        }
+
+        .hash-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .hash-table thead {
+            background: #f8f9fa;
+        }
+
+        .hash-table th,
+        .hash-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .hash-table th {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .hash-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .happy {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .sad {
+            color: #dc3545;
+            font-weight: 600;
+        }
+
+        .tree-view {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        .tree-node {
+            margin-left: 1rem;
+            padding: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+
+        .tree-tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .tree-tag.happy {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .tree-tag.sad {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .sequence-line {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .sequence-number {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .sequence-arrow {
+            color: #999;
+            margin: 0 0.5rem;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+            color: #0c5460;
+        }
+
+        .error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1.5rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .hash-table {
+                font-size: 0.8rem;
+            }
+
+            .hash-table th,
+            .hash-table td {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 Happy Numbers Calculator</h1>
+        <p class="subtitle">Explore the fascinating world of happy numbers with WebAssembly</p>
+
+        <div class="info-box">
+            <strong>ℹ️ What's a Happy Number?</strong> A number where repeatedly summing the squares of its digits eventually reaches 1. For example, 7 is happy: 7 → 49 → 97 → 130 → 10 → 1
+        </div>
+
+        <div class="form-section">
+            <form id="calculate-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="limit">Limit (1-1000)</label>
+                        <input type="number" id="limit" name="limit" value="100" min="1" max="1000" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="base">Base (2-36)</label>
+                        <input type="number" id="base" name="base" value="10" min="2" max="36" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="pow">Power (1-10)</label>
+                        <input type="number" id="pow" name="pow" value="2" min="1" max="10" required>
+                    </div>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="pure" name="pure">
+                    <label for="pure" style="margin-bottom: 0;">Pure Happy Numbers Only</label>
+                </div>
+
+                <div class="button-group">
+                    <button type="submit" id="calculate-btn">Calculate</button>
+                    <button type="reset" id="reset-btn">Reset</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Calculating happy numbers...</p>
+        </div>
+
+        <div id="results" class="results-section"></div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
