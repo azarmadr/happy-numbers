@@ -1,0 +1,28 @@
+# Raku
+.precomp/
+.raku-cache/
+*.moarvm
+*.jar
+
+# WASM
+wasm/dist/
+*.wasm
+*.wasm.js
+
+# Node
+node_modules/
+npm-debug.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+dist/
+build/
+*.o
+*.so
