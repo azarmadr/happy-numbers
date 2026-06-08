@@ -1,5 +1,3 @@
-# lib/HappyNumbers.rakumod
-
 unit module HappyNumbers;
 
 class Calculator {

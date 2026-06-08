@@ -50,3 +50,7 @@ externalPort = 80
 
 [nix]
 channel = "stable-25_05"
+
+[deployment]
+deploymentTarget = "cloudrun"
+run = ["sh", "-c", "raku main.raku -v -r"]
