@@ -90,162 +90,243 @@ sub build-graph-html(%happiness) {
         }
     }
 
-    # Find roots (nodes that are not a "next" value of any other node)
-    my %is-child;
-    for %happiness.kv -> $num, $data {
-        my $next = $data<next>;
-        if $next.defined && $next.Str ~~ /^\d+$/ && $next.Str ne $num {
-            %is-child{$num} = True;
-        }
-    }
-    my @roots = %happiness.keys.grep({ !(%is-child{$_}:exists) }).sort: *.Int;
-
-    # Add disconnected cyclic components as extra roots
-    my %included;
-    for @roots -> $root {
-        %included{$root} = True;
-        sub mark($node, %seen) {
-            if (%children{$node}:exists) {
-                for %children{$node}.sort: *.Int -> $child {
-                    next if $child eq $node;
-                    next if (%seen{$child}:exists);
-                    %included{$child} = True;
-                    my %seen-new = %seen.clone;
-                    %seen-new{$child} = True;
-                    mark($child, %seen-new);
-                }
+    # ---- Decompose into connected components ----
+    my %component;
+    my $comp-id = 0;
+    for @nodes -> $node {
+        next if %component{$node}:exists;
+        my @queue = ($node,);
+        while @queue.elems > 0 {
+            my $n = @queue.shift;
+            next if %component{$n}:exists;
+            %component{$n} = $comp-id;
+            my $next = %happiness{$n}<next>;
+            if $next.defined && $next.Str ~~ /^\d+$/ && !(%component{$next.Str}:exists) {
+                @queue.push($next.Str);
             }
-        }
-        mark($root, %($root => True));
-    }
-    my @remaining = %happiness.keys.grep({ !(%included{$_}:exists) }).sort: *.Int;
-    while @remaining.elems > 0 {
-        my $start = @remaining[0];
-        my %cycle-seen;
-        my $current = $start;
-        my $cycle-root;
-        loop {
-            if (%cycle-seen{$current}:exists) {
-                $cycle-root = $current;
-                last;
-            }
-            %cycle-seen{$current} = True;
-            my $next = %happiness{$current}<next>;
-            if $next.defined && $next.Str ~~ /^\d+$/ {
-                $current = $next.Str;
-            } else {
-                last;
-            }
-        }
-        @roots.push($cycle-root) if $cycle-root.defined;
-        %included = %();
-        for @roots -> $root {
-            %included{$root} = True;
-            sub mark2($node, %seen) {
-                if (%children{$node}:exists) {
-                    for %children{$node}.sort: *.Int -> $child {
-                        next if $child eq $node;
-                        next if (%seen{$child}:exists);
-                        %included{$child} = True;
-                        my %seen-new = %seen.clone;
-                        %seen-new{$child} = True;
-                        mark2($child, %seen-new);
+            if (%children{$n}:exists) {
+                for %children{$n}.list -> $child {
+                    if !(%component{$child}:exists) {
+                        @queue.push($child);
                     }
                 }
             }
-            mark2($root, %($root => True));
         }
-        @remaining = %happiness.keys.grep({ !(%included{$_}:exists) }).sort: *.Int;
+        $comp-id++;
     }
 
-    # Compact layout constants
+    my %comp-nodes;
+    for @nodes -> $node {
+        %comp-nodes{%component{$node}}.push($node);
+    }
+
+    # ---- Constants ----
     my %pos;
-    my $margin_x = 20;
-    my $margin_y = 30;
-    my $level_height = 50;
-    my $leaf_w = 36;
+    my %all-cycle-nodes;
     my $r = 16;
-
-    # Pass 1: compute depth of each node via DFS
-    my %depth;
-    for @roots -> $root {
-        my %seen = %($root => True);
-        sub set-depth($node, $d) {
-            %depth{$node} = $d if !(%depth{$node}:exists) || $d > %depth{$node};
-            if (%children{$node}:exists) {
-                for %children{$node}.sort: *.Int -> $child {
-                    next if $child eq $node;
-                    next if (%seen{$child}:exists);
-                    %seen{$child} = True;
-                    set-depth($child, $d + 1);
-                }
-            }
-        }
-        set-depth($root, 0);
-    }
-
-    # Pass 2: compute x positions (leaves left to right, parents centered)
-    sub count-leaves($node, %seen) {
-        if (%children{$node}:exists) {
-            my @valid = %children{$node}.sort: *.Int;
-            @valid = @valid.grep({ $_ ne $node && !(%seen{$_}:exists) });
-            if @valid.elems > 0 {
-                my $total = 0;
-                for @valid -> $child {
-                    my %seen-new = %seen.clone;
-                    %seen-new{$child} = True;
-                    $total += count-leaves($child, %seen-new);
-                }
-                return $total;
-            }
-        }
-        return 1;
-    }
-
-    my $leaf_x = $margin_x;
-    sub assign-x($node, %seen) {
-        if (%children{$node}:exists) {
-            my @valid = %children{$node}.sort: *.Int;
-            @valid = @valid.grep({ $_ ne $node && !(%seen{$_}:exists) });
-            if @valid.elems > 0 {
-                my @child-xs;
-                for @valid -> $child {
-                    my %seen-new = %seen.clone;
-                    %seen-new{$child} = True;
-                    my $cx = assign-x($child, %seen-new);
-                    @child-xs.push($cx);
-                }
-                my $x = @child-xs.sum / @child-xs.elems;
-                %pos{$node} = %(x => $x, y => %depth{$node} * $level_height + $margin_y);
-                return $x;
-            }
-        }
-        my $x = $leaf_x + $leaf_w / 2;
-        $leaf_x += $leaf_w;
-        %pos{$node} = %(x => $x, y => %depth{$node} * $level_height + $margin_y);
-        return $x;
-    }
-
-    for @roots -> $root {
-        my %seen = %($root => True);
-        assign-x($root, %seen);
-    }
-
-    # Dimensions
-    my $max_x = 0;
-    my $max_y = 0;
-    for %pos.values -> $p {
-        $max_x = $p<x> if $p<x> > $max_x;
-        $max_y = $p<y> if $p<y> > $max_y;
-    }
-    my $width = $max_x + $leaf_w + $margin_x;
-    my $height = $max_y + $margin_y + 30;
+    my $petal-r = 26;
+    my $cycle-r = 55;
+    my $comp-gap = 60;
+    my $comp-y = 120;
+    my $comp-x = 0;
 
     sub node-color($node) {
         my $data = %happiness{$node};
         return $data<zhappy> ?? '#4caf50' !! '#f44336';
     }
 
+    # ---- Layout each component ----
+    for ^$comp-id -> $cid {
+        my @comp = %comp-nodes{$cid}.list.sort: *.Int;
+        next if @comp.elems == 0;
+
+        # Find the cycle
+        my %visited;
+        my %in-cycle;
+        for @comp -> $start {
+            next if %in-cycle{$start}:exists;
+            my %path-seen;
+            my $current = $start;
+            my @path;
+            loop {
+                if %path-seen{$current}:exists {
+                    my $idx = @path.first: * eq $current, :k;
+                    if $idx.defined {
+                        for @path[$idx..*] -> $c {
+                            %in-cycle{$c} = True;
+                        }
+                    }
+                    last;
+                }
+                if %visited{$current}:exists {
+                    last;
+                }
+                %path-seen{$current} = True;
+                @path.push($current);
+                %visited{$current} = True;
+
+                my $next = %happiness{$current}<next>;
+                if $next.defined && $next.Str ~~ /^\d+$/ {
+                    $current = $next.Str;
+                } else {
+                    last;
+                }
+            }
+        }
+
+        my @cycle = @comp.grep({ %in-cycle{$_}:exists }).sort: *.Int;
+        for @cycle -> $c { %all-cycle-nodes{$c} = True; }
+
+        # ---- Place cycle nodes in a circle ----
+        my $center-x = $comp-x + $cycle-r + 40;
+        my $center-y = $comp-y;
+
+        if @cycle.elems == 1 {
+            %pos{@cycle[0]} = %(x => $center-x, y => $center-y);
+        } else {
+            my $n = @cycle.elems;
+            for ^$n -> $i {
+                my $angle = 2 * pi * $i / $n - pi / 2;
+                my $cx = $center-x + $cycle-r * cos($angle);
+                my $cy = $center-y + $cycle-r * sin($angle);
+                %pos{@cycle[$i]} = %(x => $cx, y => $cy);
+            }
+        }
+
+        # ---- Build predecessor tree for each petal ----
+        my %sub-children;
+        for @comp -> $node {
+            next if %in-cycle{$node}:exists;
+            my $next = %happiness{$node}<next>;
+            if $next.defined && $next.Str ~~ /^\d+$/ {
+                %sub-children{$next.Str}.push($node);
+            }
+        }
+
+        # Group petal roots by their cycle attachment
+        my %petal-roots;
+        for @comp -> $node {
+            next if %in-cycle{$node}:exists;
+            my $current = $node;
+            my %seen;
+            loop {
+                if %in-cycle{$current}:exists {
+                    %petal-roots{$current}.push($node);
+                    last;
+                }
+                if %seen{$current}:exists {
+                    last;
+                }
+                %seen{$current} = True;
+                my $next = %happiness{$current}<next>;
+                if $next.defined && $next.Str ~~ /^\d+$/ {
+                    $current = $next.Str;
+                } else {
+                    last;
+                }
+            }
+        }
+
+        sub count-branch-leaves($node, %seen) {
+            if %sub-children{$node}:exists {
+                my @valid = %sub-children{$node}.grep({ !(%seen{$_}:exists) });
+                if @valid.elems > 0 {
+                    my $total = 0;
+                    for @valid -> $child {
+                        my %s2 = %seen.clone;
+                        %s2{$child} = True;
+                        $total += count-branch-leaves($child, %s2);
+                    }
+                    return $total;
+                }
+            }
+            return 1;
+        }
+
+        # Place each petal radially
+        my $n-cycle = @cycle.elems;
+        for ^$n-cycle -> $i {
+            my $cycle-node = @cycle[$i];
+            my @roots = %petal-roots{$cycle-node}:exists ?? %petal-roots{$cycle-node}.list !! ();
+            next if @roots.elems == 0;
+
+            my $base-angle = $n-cycle == 1
+                ?? -pi / 2
+                !! 2 * pi * $i / $n-cycle - pi / 2;
+
+            my $spread = max(pi / 3, min(pi * 0.8, @roots.elems * pi / 8));
+            my $start-angle = $base-angle - $spread / 2;
+            my $step = $spread / max(1, @roots.elems);
+
+            my %placed;
+            sub place-radial($node, $angle, $depth, %seen) {
+                my $dist = $cycle-r + $depth * $petal-r;
+                my $px = $center-x + $dist * cos($angle);
+                my $py = $center-y + $dist * sin($angle);
+                %pos{$node} = %(x => $px, y => $py);
+                %placed{$node} = True;
+
+                if %sub-children{$node}:exists {
+                    my @valid = %sub-children{$node}.grep({ !(%seen{$_}:exists) && !(%placed{$_}:exists) });
+                    if @valid.elems > 0 {
+                        my @counts;
+                        for @valid -> $child {
+                            my %s2 = %seen.clone;
+                            %s2{$child} = True;
+                            @counts.push(count-branch-leaves($child, %s2));
+                        }
+                        my $total = @counts.sum;
+                        my $a-step = $spread / max(1, $total);
+                        my $cur = $angle - ($spread / 2);
+                        for ^@valid.elems -> $j {
+                            my $child = @valid[$j];
+                            my $ca = $cur + @counts[$j] * $a-step / 2;
+                            my %s3 = %seen.clone;
+                            %s3{$child} = True;
+                            place-radial($child, $ca, $depth + 1, %s3);
+                            $cur += @counts[$j] * $a-step;
+                        }
+                    }
+                }
+            }
+
+            for ^@roots.elems -> $j {
+                my $a = $start-angle + $step * ($j + 0.5);
+                place-radial(@roots[$j], $a, 1, %(@roots[$j] => True));
+            }
+        }
+
+        # Update component x for next component
+        my $max-cx = 0;
+        for @comp -> $n {
+            if %pos{$n}:exists {
+                $max-cx = max($max-cx, %pos{$n}<x> + $r + 20);
+            }
+        }
+        $comp-x = $max-cx + $comp-gap;
+    }
+
+    # Dimensions
+    my $max-x = 0;
+    my $max-y = 0;
+    my $min-x = 9999;
+    my $min-y = 9999;
+    for %pos.values -> $p {
+        $max-x = max($max-x, $p<x>);
+        $max-y = max($max-y, $p<y>);
+        $min-x = min($min-x, $p<x>);
+        $min-y = min($min-y, $p<y>);
+    }
+    my $margin = 30;
+    my $width = $max-x - $min-x + $margin * 2;
+    my $height = $max-y - $min-y + $margin * 2;
+
+    for %pos.keys -> $k {
+        %pos{$k}<x> -= $min-x - $margin;
+        %pos{$k}<y> -= $min-y - $margin;
+    }
+
+    # ---- Render SVG ----
     sub edge-str($from, $to) {
         my $p1 = %pos{$from};
         my $p2 = %pos{$to};
@@ -253,7 +334,7 @@ sub build-graph-html(%happiness) {
         my $dx = $p2<x> - $p1<x>;
         my $dy = $p2<y> - $p1<y>;
         my $dist = sqrt($dx * $dx + $dy * $dy);
-        return '' if $dist == 0;
+        return '' if $dist < 1;
         my $ux = $dx / $dist;
         my $uy = $dy / $dist;
         my $x1 = $p1<x> + $ux * $r;
@@ -262,10 +343,9 @@ sub build-graph-html(%happiness) {
         my $y2 = $p2<y> - $uy * $r;
 
         if $from eq $to {
-            # Self-loop: circular arc above the node
             my $cx = $p1<x>;
             my $cy = $p1<y>;
-            my $loop-r = $r + 8;
+            my $loop-r = $r + 6;
             my $sx = $cx;
             my $sy = $cy - $r;
             my $ex = $cx + 0.1;
@@ -273,22 +353,22 @@ sub build-graph-html(%happiness) {
             return '<path d="M ' ~ $sx ~ ',' ~ $sy ~ ' A ' ~ $loop-r ~ ' ' ~ $loop-r ~ ' 0 1 1 ' ~ $ex ~ ',' ~ $ey ~ '" fill="none" stroke="#888" stroke-width="1.5" marker-end="url(#arrow)" />';
         }
 
-        # Detect back-edges (cycle closing edges)
-        # If the target is at same or higher level in the tree, draw a curved arc
-        if (%depth{$to}:exists) && (%depth{$from}:exists) {
-            my $d1 = %depth{$from};
-            my $d2 = %depth{$to};
-            if $d2 <= $d1 {
-                # Back edge or horizontal edge - draw a nice curve
-                my $mid-y = ($p1<y> + $p2<y>) / 2;
-                my $control-x = ($p1<x> + $p2<x>) / 2;
-                my $control-y = $mid-y - 20;
-                if ($p1<x> - $p2<x>).abs < 10 {
-                    # Nearly vertical, curve outward
-                    $control-x = $p1<x> + 30;
-                    $control-y = $mid-y;
-                }
-                return '<path d="M ' ~ $x1 ~ ',' ~ $y1 ~ ' Q ' ~ $control-x ~ ',' ~ $control-y ~ ' ' ~ $x2 ~ ',' ~ $y2 ~ '" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#arrow)" />';
+        # Cycle edges: curved arcs inward
+        if (%all-cycle-nodes{$from}:exists) && (%all-cycle-nodes{$to}:exists) {
+            my $mx = ($p1<x> + $p2<x>) / 2;
+            my $my = ($p1<y> + $p2<y>) / 2;
+            my $nx = $p2<x> - $p1<x>;
+            my $ny = $p2<y> - $p1<y>;
+            my $px = -$ny;
+            my $py = $nx;
+            my $plen = sqrt($px * $px + $py * $py);
+            if $plen > 0 {
+                $px /= $plen;
+                $py /= $plen;
+                my $offset = 25;
+                my $qx = $mx + $px * $offset;
+                my $qy = $my + $py * $offset;
+                return '<path d="M ' ~ $x1 ~ ',' ~ $y1 ~ ' Q ' ~ $qx ~ ',' ~ $qy ~ ' ' ~ $x2 ~ ',' ~ $y2 ~ '" fill="none" stroke="#888" stroke-width="1.5" marker-end="url(#arrow)" />';
             }
         }
 
@@ -317,7 +397,7 @@ sub build-graph-html(%happiness) {
 
     $svg ~= '</svg>';
 
-    my $html = '<details open>';
+    my $html = '<details>';
     $html ~= '<summary>Graph View</summary>';
     $html ~= '<div class="graph-container">';
     $html ~= $svg;
