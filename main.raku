@@ -48,8 +48,8 @@ loop {
         $pow = 1 if $pow < 1;
         $pow = 10 if $pow > 10;
 
-        my $calc = HappyNumbers::Calculator.new(:$limit, :$base, :power($pow), :$get-pure);
-        my $result = $calc.calculate();
+        my $calc = HappyNumbers::Calculator.new(:$base, :power($pow), :$get-pure);
+        my $result = $calc.calculate(:$limit);
 
         my $results-html = build-results-html($result);
 
