@@ -79,8 +79,7 @@ loop {
 # HTML rendering subs
 sub build-graph-html(%happiness) {
     my @nodes = %happiness.keys.sort: *.Int;
-    my $n = @nodes.elems;
-    return '' if $n == 0;
+    return '' if @nodes.elems == 0;
 
     # Build children map: parent -> list of children (numbers that point to parent)
     my %children;
@@ -159,13 +158,13 @@ sub build-graph-html(%happiness) {
         @remaining = %happiness.keys.grep({ !(%included{$_}:exists) }).sort: *.Int;
     }
 
-    # Tree layout
+    # Compact layout constants
     my %pos;
-    my $margin_x = 40;
-    my $margin_y = 50;
-    my $level_height = 80;
-    my $node_w = 60;
-    my $r = 22;
+    my $margin_x = 20;
+    my $margin_y = 30;
+    my $level_height = 50;
+    my $leaf_w = 36;
+    my $r = 16;
 
     # Pass 1: compute depth of each node via DFS
     my %depth;
@@ -186,7 +185,6 @@ sub build-graph-html(%happiness) {
     }
 
     # Pass 2: compute x positions (leaves left to right, parents centered)
-    # Build a subtree for each root
     sub count-leaves($node, %seen) {
         if (%children{$node}:exists) {
             my @valid = %children{$node}.sort: *.Int;
@@ -222,9 +220,8 @@ sub build-graph-html(%happiness) {
                 return $x;
             }
         }
-        # Leaf
-        my $x = $leaf_x + $node_w / 2;
-        $leaf_x += $node_w;
+        my $x = $leaf_x + $leaf_w / 2;
+        $leaf_x += $leaf_w;
         %pos{$node} = %(x => $x, y => %depth{$node} * $level_height + $margin_y);
         return $x;
     }
@@ -241,7 +238,7 @@ sub build-graph-html(%happiness) {
         $max_x = $p<x> if $p<x> > $max_x;
         $max_y = $p<y> if $p<y> > $max_y;
     }
-    my $width = $max_x + $node_w + $margin_x;
+    my $width = $max_x + $leaf_w + $margin_x;
     my $height = $max_y + $margin_y + 30;
 
     sub node-color($node) {
@@ -263,17 +260,44 @@ sub build-graph-html(%happiness) {
         my $y1 = $p1<y> + $uy * $r;
         my $x2 = $p2<x> - $ux * $r;
         my $y2 = $p2<y> - $uy * $r;
+
         if $from eq $to {
+            # Self-loop: circular arc above the node
             my $cx = $p1<x>;
-            my $cy = $p1<y> - $r - 10;
-            return '<path d="M ' ~ $cx ~ ',' ~ ($p1<y> - $r) ~ ' Q ' ~ ($cx - 20) ~ ',' ~ $cy ~ ' ' ~ $cx ~ ',' ~ $cy ~ ' Q ' ~ ($cx + 20) ~ ',' ~ $cy ~ ' ' ~ $cx ~ ',' ~ ($p1<y> - $r) ~ '" fill="none" stroke="#888" stroke-width="1.5" marker-end="url(#arrow)" />';
+            my $cy = $p1<y>;
+            my $loop-r = $r + 8;
+            my $sx = $cx;
+            my $sy = $cy - $r;
+            my $ex = $cx + 0.1;
+            my $ey = $cy - $r;
+            return '<path d="M ' ~ $sx ~ ',' ~ $sy ~ ' A ' ~ $loop-r ~ ' ' ~ $loop-r ~ ' 0 1 1 ' ~ $ex ~ ',' ~ $ey ~ '" fill="none" stroke="#888" stroke-width="1.5" marker-end="url(#arrow)" />';
         }
-        return '<line x1="' ~ $x1 ~ '" y1="' ~ $y1 ~ '" x2="' ~ $x2 ~ '" y2="' ~ $y2 ~ '" stroke="#888" stroke-width="1.5" marker-end="url(#arrow)" />';
+
+        # Detect back-edges (cycle closing edges)
+        # If the target is at same or higher level in the tree, draw a curved arc
+        if (%depth{$to}:exists) && (%depth{$from}:exists) {
+            my $d1 = %depth{$from};
+            my $d2 = %depth{$to};
+            if $d2 <= $d1 {
+                # Back edge or horizontal edge - draw a nice curve
+                my $mid-y = ($p1<y> + $p2<y>) / 2;
+                my $control-x = ($p1<x> + $p2<x>) / 2;
+                my $control-y = $mid-y - 20;
+                if ($p1<x> - $p2<x>).abs < 10 {
+                    # Nearly vertical, curve outward
+                    $control-x = $p1<x> + 30;
+                    $control-y = $mid-y;
+                }
+                return '<path d="M ' ~ $x1 ~ ',' ~ $y1 ~ ' Q ' ~ $control-x ~ ',' ~ $control-y ~ ' ' ~ $x2 ~ ',' ~ $y2 ~ '" fill="none" stroke="#888" stroke-width="1.2" marker-end="url(#arrow)" />';
+            }
+        }
+
+        return '<line x1="' ~ $x1 ~ '" y1="' ~ $y1 ~ '" x2="' ~ $x2 ~ '" y2="' ~ $y2 ~ '" stroke="#888" stroke-width="1.2" marker-end="url(#arrow)" />';
     }
 
     my $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' ~ $width ~ '" height="' ~ $height ~ '" viewBox="0 0 ' ~ $width ~ ' ' ~ $height ~ '" class="graph-svg">';
     $svg ~= '<defs>';
-    $svg ~= '<marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#888" /></marker>';
+    $svg ~= '<marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#888" /></marker>';
     $svg ~= '</defs>';
 
     for @nodes -> $node {
@@ -287,13 +311,13 @@ sub build-graph-html(%happiness) {
         my $p = %pos{$node};
         next unless $p;
         my $color = node-color($node);
-        $svg ~= '<circle cx="' ~ $p<x> ~ '" cy="' ~ $p<y> ~ '" r="' ~ $r ~ '" fill="' ~ $color ~ '" stroke="#fff" stroke-width="2" />';
-        $svg ~= '<text x="' ~ $p<x> ~ '" y="' ~ ($p<y> + 5) ~ '" text-anchor="middle" fill="#fff" font-size="13" font-family="monospace">' ~ $node ~ '</text>';
+        $svg ~= '<circle cx="' ~ $p<x> ~ '" cy="' ~ $p<y> ~ '" r="' ~ $r ~ '" fill="' ~ $color ~ '" stroke="#fff" stroke-width="1.5" />';
+        $svg ~= '<text x="' ~ $p<x> ~ '" y="' ~ ($p<y> + 4) ~ '" text-anchor="middle" fill="#fff" font-size="11" font-family="monospace">' ~ $node ~ '</text>';
     }
 
     $svg ~= '</svg>';
 
-    my $html = '<details>';
+    my $html = '<details open>';
     $html ~= '<summary>Graph View</summary>';
     $html ~= '<div class="graph-container">';
     $html ~= $svg;
