@@ -2,15 +2,60 @@
 
 unit module HappyNumbers;
 
+class HappyEngine {
+    has Int $.base is rw = 10;
+    has Int $.power is rw = 2;
+    has %!happiness;
+
+    submethod TWEAK() {
+        %!happiness{1} = %(next => 1, iter => 0, zhappy => True, seq => "1");
+    }
+
+    method normalize($n) {
+        $n.base($!base).comb.grep(* !~~ 0).sort.join.parse-base($!base);
+    }
+
+    method !step($n) {
+        self.normalize($n.base($!base).comb.map(*.parse-base($!base) ** $!power).sum);
+    }
+
+    method !happy($n, $seq = "") {
+        my sub is-happy {
+            my $next = self!step($n);
+            %!happiness{$n} = %(iter => 1);
+            return %!happiness{$n} = %(
+                |%($_),
+                :$next,
+                iter => $_<iter> + 1,
+                :seq(($seq.Bool ?? $seq !! $n.Str) ~ " => $next"),
+            ) with self!happy($next, ($seq.Bool ?? $seq !! $n.Str) ~ " => $next");
+        }
+        return $n == 1
+            ?? %(|%!happiness<1>, iter => 1, :seq($seq || "1"))
+            !! %!happiness{$n} || is-happy();
+    }
+
+    method detail($n) {
+        self!happy($n);
+        %!happiness{$n};
+    }
+
+    method is-happy($n) {
+        self.detail($n)<zhappy>;
+    }
+
+    method happiness() { %!happiness }
+}
+
 class HappySequence does Iterator does Iterable {
     has Int $.base is rw = 10;
     has Int $.power is rw = 2;
 
     has Int $!next-number = 1;
-    has %!cache;
+    has HappyEngine $!engine;
 
     submethod TWEAK() {
-        %!cache{1} = True;
+        $!engine = HappyNumbers::HappyEngine.new(:$!base, :$!power);
     }
 
     method iterator() { self }
@@ -18,8 +63,8 @@ class HappySequence does Iterator does Iterable {
     method pull-one() {
         loop {
             my $n = $!next-number;
-            my $normalized = $n.base($!base).comb.grep(* !~~ 0).sort.join.parse-base($!base);
-            if self!is-happy($normalized) {
+            my $normalized = $!engine.normalize($n);
+            if $!engine.is-happy($normalized) {
                 $!next-number++;
                 return $n;
             }
@@ -28,39 +73,6 @@ class HappySequence does Iterator does Iterable {
     }
 
     method is-lazy() { True }
-
-    method !is-happy($normalized) {
-        return %!cache{$normalized} if %!cache{$normalized}:exists;
-
-        my %seen;
-        my $current = $normalized;
-        my @path;
-
-        loop {
-            if %!cache{$current}:exists {
-                my $happy = %!cache{$current};
-                for @path -> $num {
-                    %!cache{$num} = $happy;
-                }
-                return $happy;
-            }
-
-            if %seen{$current}:exists {
-                for @path -> $num {
-                    %!cache{$num} = False;
-                }
-                return False;
-            }
-
-            %seen{$current} = True;
-            @path.push($current);
-
-            my $next = $current.base($!base).comb.map(*.parse-base($!base) ** $!power).sum;
-            $next = $next.base($!base).comb.grep(* !~~ 0).sort.join.parse-base($!base);
-
-            $current = $next;
-        }
-    }
 }
 
 class PureHappySequence does Iterator does Iterable {
@@ -97,56 +109,46 @@ class Calculator {
     has Bool $.verbose is rw = False;
 
     has @!happy-numbers;
-    has %!happiness;
     has @!pure-numbers;
     has Int $!max-tried;
     has @!sequences;
+    has HappyEngine $!engine;
 
     submethod TWEAK() {
-        %!happiness{1} = %(next => 1, iter => 0, zhappy => True);
+        $!engine = HappyNumbers::HappyEngine.new(:$!base, :$!power);
     }
 
     method calculate(:$limit) {
         @!happy-numbers = (1,);
         @!pure-numbers = ();
         @!sequences = ();
-        %!happiness = %(1 => %(next => 1, iter => 0, zhappy => True));
+        $!engine = HappyNumbers::HappyEngine.new(:$!base, :$!power);
 
-        my $normalize-num = *.base($!base).comb.grep(* !~~ 0).sort.join.parse-base($!base);
+        my $normalizer = -> $n { $!engine.normalize($n) };
 
         for 2 .. * -> $number {
-            my $normalized = $normalize-num($number);
-            my $is-happy = self!happy($normalized, '', :$normalize-num);
-            if $is-happy<zhappy> {
+            my $normalized = $normalizer($number);
+            my $detail = $!engine.detail($normalized);
+            if $detail<zhappy> {
                 @!happy-numbers.push($number);
-                @!sequences.push($number => $is-happy<seq> // ($number.Str));
+                @!sequences.push($number => $detail<seq>);
             }
-            last if @!happy-numbers.unique(:as($!get-pure ?? $normalize-num !! *)).elems == $limit;
+            last if @!happy-numbers.unique(:as($!get-pure ?? $normalizer !! *)).elems == $limit;
             LAST {
                 $!max-tried = $number;
             }
         }
 
-        @!pure-numbers = @!happy-numbers.unique(:as($normalize-num));
+        @!pure-numbers = @!happy-numbers.unique(:as($normalizer));
 
         return %(
             :happy-numbers(@!happy-numbers),
             :pure-numbers(@!pure-numbers),
             :max-tried($!max-tried),
-            :happiness(%!happiness),
-            :hash-size(%!happiness.elems),
+            :happiness($!engine.happiness()),
+            :hash-size($!engine.happiness().elems),
             :sequences(@!sequences),
         );
-    }
-
-    method !happy($n, $seq = "", :$normalize-num) {
-        my sub is-happy {
-            my $next = $normalize-num($n.base($!base).comb.map(*.parse-base($!base) ** $!power).sum);
-            %!happiness{$n} = %(iter => 1);
-            return %!happiness{$n} = %(|%($_), :$next, iter => $_<iter> + 1, :seq(($seq.Bool ?? $seq !! $n.Str) ~ " => $next"))
-                with self!happy($next, ($seq.Bool ?? $seq !! $n.Str) ~ " => $next", :$normalize-num);
-        }
-        return $n == 1 ?? %(|%!happiness<1>, iter => 1, :seq($seq || "1")) !! %!happiness{$n} || is-happy()
     }
 
     method happy-sequence() {
@@ -157,7 +159,7 @@ class Calculator {
         PureHappySequence.new(:$.base, :$.power)
     }
 
-    method happiness() { %!happiness }
+    method happiness() { $!engine.happiness() }
     method happy-numbers() { @!happy-numbers }
     method pure-numbers() { @!pure-numbers }
     method sequences() { @!sequences }
